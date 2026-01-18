@@ -1,0 +1,16 @@
+{
+  "type": "module",
+  "scripts": {
+    "render": "node render.js"
+  },
+  "name": "meteomedia-render",
+  "version": "1.0.0",
+  "description": "",
+  "main": "render.js",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "puppeteer": "^24.35.0"
+  }
+}

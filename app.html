@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DWD MOSMIX – Meteomedia Legacy PNG</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1"></script>
+
+<style>
+:root {
+  --font-size: 12px;
+  --font-size-small: 10px;
+  --color-bg: #ffffff;
+  --color-text: #111111;
+  --color-text-light: #666666;
+  --color-app-bg: #f8f8f8;
+  --color-app-border: #dddddd;
+  --color-graph-temp: #000;
+  --color-graph-wind: #808000;
+  --color-graph-gust: #ff00ff;
+  --color-graph-winddir: #000;
+  --color-graph-humidity: #008080;
+  --color-graph-sun: #ffd700;
+  --color-graph-rain: #0000ff;
+}
+
+/* Meteomedia Legacy */
+:root[data-theme="meteomedia"] {
+  --color-app-bg: #77acd7;
+  --color-canvas-bg: #e3e3e3;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+  font-size: var(--font-size);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+}
+
+#app {
+  position: relative;
+  width: 800px;
+  padding: 10px;
+  border: 1px solid var(--color-app-border);
+  background-color: var(--color-app-bg);
+}
+
+#stationName {
+  font-weight: bold;
+  margin-bottom: 6px;
+}
+
+#metadata {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 4px;
+}
+
+.panel {
+  margin-bottom: 6px;
+}
+
+.chart-wrap {
+  width: 100%;
+  height: 85px;
+}
+
+.chart-wrap.small {
+  height: 65px;
+}
+
+.chart-wrap.large {
+  height: 105px;
+}
+
+canvas {
+  width: 100% !important;
+  height: 100% !important;
+  background-color: var(--color-canvas-bg);
+}
+
+#meteomedia-legacy {
+  margin-top: 6px;
+  font-size: 40px;
+  color: #4582b4;
+  font-family: 'Lucida Sans', 'Lucida Sans Regular', Geneva, Verdana, sans-serif;
+  font-weight: bold;
+}
+</style>
+</head>
+
+<body>
+
+<div id="app">
+  <div id="stationName">Station:</div>
+  <div id="metadata">
+    Quelle: DWD MOSMIX via
+    <a target="_blank" href="https://brightsky.dev/">brightsky.dev</a>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title" style="margin-bottom:-20px;">Temperatur °C</div>
+    <div class="chart-wrap large">
+      <canvas id="cTemp"></canvas>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Wind / Böen km/h</div>
+    <div class="chart-wrap">
+      <canvas id="cWind"></canvas>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Relative Luftfeuchte %</div>
+    <div class="chart-wrap small">
+      <canvas id="cRH"></canvas>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Sonnenscheindauer min/h</div>
+    <div class="chart-wrap">
+      <canvas id="cSun"></canvas>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Niederschlag mm/h</div>
+    <div class="chart-wrap">
+      <canvas id="cRain"></canvas>
+    </div>
+  </div>
+
+  <div id="meteomedia-legacy">wetterstationen.meteomedia.de</div>
+</div>
+
+<script>
+/* ===============================
+   Fixe Settings
+   =============================== */
+const FIXED_STATION = "10471";
+document.documentElement.dataset.theme = "meteomedia";
+
+/* ===============================
+   Bright Sky API
+   =============================== */
+function brightSkyUrl(stationId) {
+  const d = new Date();
+  return `https://api.brightsky.dev/weather`
+    + `?wmo_station_id=${stationId}`
+    + `&date=${new Date(d.getFullYear(), d.getMonth(), d.getDate()).toISOString()}`
+    + `&last_date=${new Date(d.getFullYear(), d.getMonth(), d.getDate()+3,23,59,59).toISOString()}`;
+}
+
+/* ===============================
+   Load Station
+   =============================== */
+async function loadStation() {
+  const resp = await fetch(brightSkyUrl(FIXED_STATION));
+  const json = await resp.json();
+  const rows = json.weather;
+
+  const parsed = {
+    times: rows.map(r => new Date(r.timestamp)),
+    temp: rows.map(r => r.temperature),
+    wind: rows.map(r => r.wind_speed),
+    gust: rows.map(r => r.wind_gust_speed),
+    sun: rows.map(r => r.sunshine),
+    rain: rows.map(r => r.precipitation),
+    windDirSampled: rows.map((r, i) => i % 2 === 0 ? r.wind_direction : null),
+    rh: rows.map(r => {
+      const T = r.temperature;
+      const Td = r.dew_point;
+      if (T == null || Td == null) return null;
+      const eT = 6.112 * Math.exp(17.67 * T / (T + 243.5));
+      const eTd = 6.112 * Math.exp(17.67 * Td / (Td + 243.5));
+      return Math.min(100, Math.max(0, (eTd / eT) * 100));
+    })
+  };
+
+  renderAll(parsed);
+  document.getElementById("stationName").textContent =
+    "Station: " + (json.sources?.[0]?.station_name ?? FIXED_STATION);
+    
+  window.__RENDER_DONE__ = true;
+}
+
+/* ===============================
+   Plugins
+   =============================== */
+const gridPlugin = {
+  id:"grid",
+  beforeDraw(c,a,o){
+    const {ctx,chartArea:{top,bottom},scales:{x}}=c;
+    ctx.save();
+    o.hours.forEach(h=>{
+      const px=x.getPixelForValue(h.i);
+      ctx.strokeStyle="#999";
+      ctx.lineWidth=0.4;
+      ctx.beginPath();ctx.moveTo(px,top);ctx.lineTo(px,bottom);ctx.stroke();
+    });
+    ctx.restore();
+  },
+  afterDraw(c,a,o){
+    const {ctx,chartArea:{top,bottom},scales:{x}}=c;
+    ctx.save();
+    o.days.forEach(d=>{
+      const px=x.getPixelForValue(d.i);
+      ctx.strokeStyle="#000";
+      ctx.lineWidth=1;
+      ctx.beginPath();ctx.moveTo(px,top);ctx.lineTo(px,bottom);ctx.stroke();
+    });
+    ctx.restore();
+  }
+};
+
+const windArrowPlugin = {
+  afterDraw(chart) {
+    const dirs = chart.$windDirSampled;
+    if (!dirs) return;
+    const { ctx, scales:{x}, chartArea } = chart;
+    const y = chartArea.bottom + 6;
+    ctx.save();
+    ctx.font = "13px system-ui";
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#000";
+    dirs.forEach((dd,i)=>{
+      if(dd==null)return;
+      const px=x.getPixelForValue(i);
+      ctx.save();
+      ctx.translate(px,y);
+      ctx.rotate((dd+180)*Math.PI/180);
+      ctx.fillText("↑",0,0);
+      ctx.restore();
+    });
+    ctx.restore();
+  }
+};
+
+/* ===============================
+   Render
+   =============================== */
+let charts=[];
+function renderAll(d){
+  charts.forEach(c=>c.destroy()); charts=[];
+  const labels=d.times.map((_,i)=>i);
+  const grid=gridInfo(d.times);
+
+  charts.push(new Chart(cTemp,{
+    type:"line",
+    plugins:[gridPlugin],
+    data:{labels,datasets:[{data:d.temp,borderColor:"#000",pointRadius:0,borderWidth:2}]},
+    options:opts(grid)
+  }));
+
+  const wc=new Chart(cWind,{
+    type:"line",
+    plugins:[gridPlugin,windArrowPlugin],
+    data:{labels,datasets:[
+      {data:d.wind,borderColor:"#808000",pointRadius:0,borderWidth:2},
+      {data:d.gust,borderColor:"#ff00ff",borderDash:[4,3],pointRadius:0,borderWidth:2}
+    ]},
+    options:opts(grid,{min:0})
+  });
+  wc.$windDirSampled=d.windDirSampled;
+  charts.push(wc);
+
+  charts.push(new Chart(cRH,{
+    type:"line",
+    plugins:[gridPlugin],
+    data:{labels,datasets:[{data:d.rh,borderColor:"#008080",pointRadius:0,borderWidth:2}]},
+    options:opts(grid)
+  }));
+
+  charts.push(new Chart(cSun,{
+    type:"bar",
+    plugins:[gridPlugin],
+    data:{labels,datasets:[{data:d.sun,backgroundColor:"#ffd700"}]},
+    options:opts(grid,{max:60})
+  }));
+
+  charts.push(new Chart(cRain,{
+    type:"bar",
+    plugins:[gridPlugin],
+    data:{labels,datasets:[{data:d.rain,backgroundColor:"#0000ff"}]},
+    options:opts(grid,{suggestedMax:0.5})
+  }));
+}
+
+function opts(grid,y={}) {
+  return {
+    responsive:true,
+    maintainAspectRatio:false,
+    plugins:{legend:{display:false},grid:{days:grid.days,hours:grid.hours}},
+    scales:{x:{display:false},y:{...y}}
+  };
+}
+
+function gridInfo(times){
+  const days=[],hours=[];
+  times.forEach((t,i)=>{
+    if(t.getHours()===0)days.push({i});
+    if([0,6,12,18].includes(t.getHours()))hours.push({i});
+  });
+  return {days,hours};
+}
+
+/* ===============================
+   Start
+   =============================== */
+loadStation();
+</script>
+
+</body>
+</html>
