@@ -1,12 +1,14 @@
 import puppeteer from "puppeteer";
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs";
+if (!fs.existsSync("output")) fs.mkdirSync("output");
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const HTML_FILE = path.join(__dirname, "app.html");
-const OUTPUT = path.join(__dirname, "meteomedia_10471.png");
+const OUTPUT = path.join(__dirname, "output", "meteomedia_10471.png");
 
 (async () => {
   const browser = await puppeteer.launch({
