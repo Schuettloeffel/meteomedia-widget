@@ -258,9 +258,18 @@ function renderAll(d){
   charts.push(new Chart(cTemp,{
     type:"line",
     plugins:[gridPlugin],
-    data:{labels,datasets:[{data:d.temp,borderColor:"#000",pointRadius:0,borderWidth:2}]},
-    options:opts(grid)
+    data:{
+      labels,
+      datasets:[{
+        data: d.temp,
+        borderColor: "#000",
+        pointRadius: 0,
+        borderWidth: 2
+      }]
+    },
+    options: opts(grid, {}, false, d.times, true)
   }));
+
 
   const wc=new Chart(cWind,{
     type:"line",
@@ -296,12 +305,52 @@ function renderAll(d){
   }));
 }
 
-function opts(grid,y={}) {
+function opts(grid, y = {}, showX = false, times = null, showXTop = false) {
   return {
-    responsive:true,
-    maintainAspectRatio:false,
-    plugins:{legend:{display:false},grid:{days:grid.days,hours:grid.hours}},
-    scales:{x:{display:false},y:{...y}}
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      grid: { days: grid.days, hours: grid.hours }
+    },
+    scales: {
+      x: {
+        display: showX,
+        ticks: showX && times ? {
+          autoSkip: false,
+          callback: (value) => hourLabel(times, value),
+          maxRotation: 0,
+          minRotation: 0,
+          font: { size: 10 },
+          color: "#666"
+        } : undefined,
+        grid: { display: false }
+      },
+      xTop: {
+        position: "top",
+        display: showXTop,
+        ticks: showXTop && times ? {
+          autoSkip: false,
+          callback: (v) => dayTicks(times)[v],
+          maxRotation: 0,
+          minRotation: 0,
+          font: { size: 12, weight: "bold" },
+          color: "#000",
+          padding: 4
+        } : undefined,
+        grid: { display: false }
+      },
+      y: {
+        afterFit(scale) {
+          scale.width = 28;
+        },
+        grid: {
+          color: "#999",
+          lineWidth: 0.1
+        },
+        ...y
+      }
+    }
   };
 }
 
@@ -313,6 +362,26 @@ function gridInfo(times){
   });
   return {days,hours};
 }
+
+function hourLabel(times, index) {
+  const h = times[index].getHours();
+  return [0, 6, 12, 18].includes(h)
+    ? h.toString().padStart(2, "0")
+    : "";
+}
+
+function dayTicks(times) {
+  return times.map(t =>
+    t.getHours() === 12
+      ? t.toLocaleDateString("de-DE", {
+          weekday: "short",
+          day: "2-digit",
+          month: "2-digit"
+        })
+      : ""
+  );
+}
+
 
 /* ===============================
    Start
