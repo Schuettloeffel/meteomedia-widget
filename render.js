@@ -37,10 +37,10 @@ const OUTPUT = path.join(__dirname, "output", "meteomedia_10471.png");
   await page.screenshot({
     path: OUTPUT,
     clip: {
-      x: 0,
-      y: 0,
-      width: 820,
-      height: 550
+      x: 1,
+      y: 1,
+      width: 818,
+      height: 518
     }
   });
 
