@@ -20,7 +20,7 @@ const OUTPUT = path.join(__dirname, "output", "meteomedia_10471.png");
   // Feste Größe für reproduzierbares PNG
   await page.setViewport({
     width: 820,
-    height: 640,
+    height: 550,
     deviceScaleFactor: 2   // scharf!
   });
 
@@ -40,7 +40,7 @@ const OUTPUT = path.join(__dirname, "output", "meteomedia_10471.png");
       x: 0,
       y: 0,
       width: 820,
-      height: 640
+      height: 550
     }
   });
 
