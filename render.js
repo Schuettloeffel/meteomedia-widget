@@ -41,7 +41,8 @@ const OUTPUT = path.join(__dirname, "output", "meteomedia_10471.png");
       y: 1,
       width: 818,
       height: 518
-    }
+    },
+    omitBackground: true
   });
 
   await browser.close();
